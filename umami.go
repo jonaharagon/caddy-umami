@@ -1,4 +1,4 @@
-package umami
+package caddyumami
 
 import (
 	"bytes"
