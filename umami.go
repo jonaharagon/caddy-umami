@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"path"
-	"strings"
 
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
@@ -25,9 +24,10 @@ func init() {
 type Umami struct {
 	EventEndpoint      string
 	WebsiteUUID        string
-	ReportAllResources bool
 	AllowedExtensions  map[string]bool
-	Verbose            bool
+	ClientIPHeader     string
+	DebugLogging       bool
+	ReportAllResources bool
 }
 
 // CaddyModule returns the Caddy module information.
@@ -56,18 +56,15 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 
 	// Send visitor information to the Umami Events REST API endpoint
 	go func() {
-		language := strings.Split(r.Header.Get("Accept-Language"), ",")[0]
-		if language == "" {
-			language = "en" // Set a default language if Accept-Language header is empty
-		}
 		hostname, _, err := net.SplitHostPort(r.Host)
 		if err != nil {
 			hostname = r.Host
 		}
+
 		visitorInfo := map[string]interface{}{
 			"payload": map[string]interface{}{
 				"hostname": hostname,
-				"language": language,
+				"language": r.Header.Get("Accept-Language"),
 				"referrer": r.Referer(),
 				"url":      r.URL.String(),
 				"website":  p.WebsiteUUID,
@@ -89,10 +86,14 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 		}
 
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-Forwarded-For", r.RemoteAddr)
 		req.Header.Set("User-Agent", r.UserAgent())
+		req.Header.Set("X-Forwarded-For", r.RemoteAddr)
 
-		if p.Verbose {
+		if p.ClientIPHeader != "" {
+			req.Header.Set(p.ClientIPHeader, r.RemoteAddr)
+		}
+
+		if p.DebugLogging {
 			fmt.Printf("Body: %s\n", body)
 		}
 
@@ -141,8 +142,13 @@ func (p *Umami) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 				for _, ext := range d.RemainingArgs() {
 					p.AllowedExtensions[ext] = true
 				}
-			case "verbose":
-				p.Verbose = true
+			case "client_ip_header":
+				if !d.NextArg() {
+					return d.ArgErr()
+				}
+				p.ClientIPHeader = d.Val()
+			case "debug":
+				p.DebugLogging = true
 
 			default:
 				return d.Errf("unknown option '%s'", d.Val())
@@ -156,6 +162,7 @@ func (p *Umami) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 			"":      true,
 			".htm":  true,
 			".html": true,
+			".php":  true,
 		}
 	}
 
