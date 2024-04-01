@@ -5,10 +5,11 @@ A module for Caddy which sends HTTP request information to Umami as page view ev
 
 ## Config
 
-You should specify the order of the `umami` directive in your global options
+You should specify the order of the `umami` directive in your global options, otherwise the `umami` block has to be defined inside a `route` block.
 
 ```caddyfile
 {
+	# see: https://caddyserver.com/docs/caddyfile/directives#directive-order
 	order umami after route
 }
 
@@ -17,18 +18,18 @@ example.com {
 		event_endpoint "https://umami.example.com/api/send"
 		website_uuid "4fa2c16a-6c0f-488f-986f-bc26d90c76d1"
 
-		// the following are optional:
+		# the following are optional:
 
-		// report every single request to Umami
-		// by default, only requests with certain extensions are reported
+		# report every single request to Umami
+		# by default, only requests with certain extensions are reported
 		report_all_resources
 
-		// a list of file extensions that should be reported
-		// by default .html, .htm, and requests with no file extension are reported
-    // be sure to include "" if you want paths like /about-us without an extension to be reported
+		# a list of file extensions that should be reported
+		# by default .html, .htm, and requests with no file extension are reported
+		# be sure to include "" if you want paths like /about-us without an extension to be reported
 		allowed_extensions "" .html .htm
 
-		// very verbose logging of all reported requests
+		# very verbose logging of all reported requests
 		verbose
 	}
 
