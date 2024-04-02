@@ -28,6 +28,7 @@ type Umami struct {
 	ClientIPHeader     string
 	DebugLogging       bool
 	ReportAllResources bool
+	TrustedIPHeader    string
 }
 
 // CaddyModule returns the Caddy module information.
@@ -61,6 +62,19 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 			hostname = r.Host
 		}
 
+		visitorIP, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			visitorIP = r.RemoteAddr
+		}
+		if p.TrustedIPHeader != "" {
+			trustedIP := r.Header.Get(p.TrustedIPHeader)
+			if net.ParseIP(trustedIP) != nil {
+				visitorIP = trustedIP
+			} else if p.DebugLogging {
+				fmt.Printf("Invalid IP address provided by trusted IP header: %s\n", trustedIP)
+			}
+		}
+
 		visitorInfo := map[string]interface{}{
 			"payload": map[string]interface{}{
 				"hostname": hostname,
@@ -87,13 +101,15 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("User-Agent", r.UserAgent())
-		req.Header.Set("X-Forwarded-For", r.RemoteAddr)
 
+		req.Header.Set("X-Forwarded-For", visitorIP)
 		if p.ClientIPHeader != "" {
-			req.Header.Set(p.ClientIPHeader, r.RemoteAddr)
+			req.Header.Set(p.ClientIPHeader, visitorIP)
 		}
 
 		if p.DebugLogging {
+			fmt.Printf("IP: %s\n", visitorIP)
+			fmt.Printf("User-Agent: %s\n", r.UserAgent())
 			fmt.Printf("Body: %s\n", body)
 		}
 
@@ -147,6 +163,11 @@ func (p *Umami) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 					return d.ArgErr()
 				}
 				p.ClientIPHeader = d.Val()
+			case "trusted_ip_header":
+				if !d.NextArg() {
+					return d.ArgErr()
+				}
+				p.TrustedIPHeader = d.Val()
 			case "debug":
 				p.DebugLogging = true
 

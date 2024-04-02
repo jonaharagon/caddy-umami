@@ -14,6 +14,7 @@ umami [<matcher>] {
 
 	allowed_extensions <extensions ...>
 	client_ip_header <name>
+	trusted_ip_header <name>
 	report_all_resources
 	debug
 }
@@ -29,6 +30,7 @@ umami [<matcher>] {
     - `.html`
     - `.php`
 - **client_ip_header** is the name of an HTTP header which will be sent to Umami **alongside** `X-Forwarded-For`, which contains the visitor's IP address.
+- **trusted_ip_header** is the name of an incoming HTTP request header which contains the visitor's true IP, which will then be sent to Umami via the `X-Forwarded-For`. This may be useful if your Caddy server is behind a reverse proxy.
 - **report_all_resources** can be included to report **all** requests to Umami, overriding allowed_extensions. By default, only requests with certain extensions are reported. This may be especially useful when using this module with a matcher.
 
 ### Full Example

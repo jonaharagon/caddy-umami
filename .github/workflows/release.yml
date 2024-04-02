@@ -22,9 +22,6 @@ jobs:
         go: [~1.22.1]
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Install Go
         uses: actions/setup-go@v5
         with:
