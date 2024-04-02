@@ -30,6 +30,8 @@ type Umami struct {
 	DebugLogging       bool
 	ReportAllResources bool
 	TrustedIPHeader    string
+	CookieConsent      string
+	CookieResolution   string
 }
 
 // CaddyModule returns the Caddy module information.
@@ -48,8 +50,15 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 		return err
 	}
 
-	// Save path to a variable and remove "//index.html" from the end of the path
-	requestPath := strings.TrimSuffix(r.URL.Path, "/index.html")
+	if p.CookieConsent != "" {
+		cookie, err := r.Cookie(p.CookieConsent)
+		if err == nil && cookie != nil && cookie.Value == "false" {
+			return nil
+		}
+	}
+
+	requestPath := strings.Clone(r.URL.Path)
+	requestPath = strings.TrimSuffix(requestPath, "/index.html")
 	if strings.HasSuffix(requestPath, "/") && r.URL.String() != "/" {
 		requestPath = strings.TrimSuffix(requestPath, "/")
 	}
@@ -82,11 +91,32 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 			}
 		}
 
+		resolution := ""
+
+		if p.CookieResolution != "" {
+			cookie, err := r.Cookie(p.CookieResolution)
+			if err != nil {
+				if p.DebugLogging {
+					fmt.Printf("Error getting resolution cookie: %v\n", err)
+				}
+			}
+
+			// handle if cookie does not exist
+			if cookie == nil {
+				cookie = &http.Cookie{
+					Name:  p.CookieResolution,
+					Value: "",
+				}
+			}
+			resolution = cookie.Value
+		}
+
 		visitorInfo := map[string]interface{}{
 			"payload": map[string]interface{}{
 				"hostname": hostname,
 				"language": r.Header.Get("Accept-Language"),
 				"referrer": r.Referer(),
+				"screen":   resolution,
 				"url":      requestPath,
 				"website":  p.WebsiteUUID,
 			},
@@ -177,6 +207,18 @@ func (p *Umami) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 				p.TrustedIPHeader = d.Val()
 			case "debug":
 				p.DebugLogging = true
+			case "cookie_consent":
+				if !d.NextArg() {
+					p.CookieConsent = "umami_consent"
+				} else {
+					p.CookieConsent = d.Val()
+				}
+			case "cookie_resolution":
+				if !d.NextArg() {
+					p.CookieResolution = "umami_resolution"
+				} else {
+					p.CookieResolution = d.Val()
+				}
 
 			default:
 				return d.Errf("unknown option '%s'", d.Val())

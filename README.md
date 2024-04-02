@@ -14,6 +14,8 @@ umami [<matcher>] {
 
 	allowed_extensions <extensions ...>
 	client_ip_header <name>
+	cookie_consent [<name>]
+	cookie_resolution [<name>]
 	trusted_ip_header <name>
 	report_all_resources
 	debug
@@ -30,6 +32,8 @@ umami [<matcher>] {
     - `.html`
     - `.php`
 - **client_ip_header** is the name of an HTTP header which will be sent to Umami **alongside** `X-Forwarded-For`, which contains the visitor's IP address.
+- **cookie_consent** is the name of a cookie, if that cookie's value is `false` then this plugin will not run. If a name is not set, the default name is `umami_consent`.
+- **cookie_resolution** is the name of a cookie whose value should be the user's screen resolution, for example `1920x1080`. It is your responsibility to set this cookie with client-side JavaScript (not provided). If this cookie is not set, device type will just be reported as unknown. If a name is not set, the default name is `umami_resolution`.
 - **trusted_ip_header** is the name of an incoming HTTP request header which contains the visitor's true IP, which will then be sent to Umami via the `X-Forwarded-For`. This may be useful if your Caddy server is behind a reverse proxy.
 - **report_all_resources** can be included to report **all** requests to Umami, overriding allowed_extensions. By default, only requests with certain extensions are reported. This may be especially useful when using this module with a matcher.
 
@@ -49,6 +53,8 @@ example.com {
 		website_uuid "4fa2c16a-6c0f-488f-986f-bc26d90c76d1"
 		allowed_extensions "" .html .htm .php
 		client_ip_header X-Real-IP
+		cookie_consent
+		cookie_resolution screenres
 	}
 
 	// ...
