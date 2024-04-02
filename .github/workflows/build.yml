@@ -8,6 +8,9 @@ on:
   workflow_dispatch:
   workflow_call:
     inputs:
+      build_from:
+        type: string
+        default: =./caddy-umami
       goos:
         type: string
       goarch:
@@ -39,6 +42,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ inputs.go || '~1.22.1' }}
+          cache: false
 
       - name: Install xcaddy
         run: |
@@ -48,7 +52,7 @@ jobs:
       - name: Build Caddy
         run: |
           GOOS=$GOOS GOARCH=$GOARCH ./xcaddy build \
-            --with github.com/jonaharagon/caddy-umami=./caddy-umami \
+            --with github.com/jonaharagon/caddy-umami${{ inputs.build_from }} \
             --with github.com/caddyserver/cache-handler \
             --with github.com/digilolnet/caddy-bunny-ip \
             --output "caddy-$GOOS-$GOARCH"
