@@ -291,3 +291,9 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 	}
 	return umami, nil
 }
+
+// Interface guards
+var (
+	_ caddyhttp.MiddlewareHandler = (*Umami)(nil)
+	_ caddyfile.Unmarshaler       = (*Umami)(nil)
+)
