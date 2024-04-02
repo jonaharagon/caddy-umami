@@ -73,10 +73,19 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 
 	// Send visitor information to the Umami Events REST API endpoint
 	go func() {
+		payload := map[string]interface{}{
+			"referrer": r.Referer(),
+			"url":      requestPath,
+			"website":  p.WebsiteUUID,
+		}
+
 		hostname, _, err := net.SplitHostPort(r.Host)
 		if err != nil {
 			hostname = r.Host
 		}
+		payload["hostname"] = hostname
+
+		payload["language"] = strings.Split(r.Header.Get("Accept-Language"), ",")[0]
 
 		visitorIP, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
@@ -90,8 +99,6 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 				fmt.Printf("Invalid IP address provided by trusted IP header: %s\n", trustedIP)
 			}
 		}
-
-		resolution := ""
 
 		if p.CookieResolution != "" {
 			cookie, err := r.Cookie(p.CookieResolution)
@@ -108,19 +115,12 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 					Value: "",
 				}
 			}
-			resolution = cookie.Value
+			payload["resolution"] = cookie.Value
 		}
 
 		visitorInfo := map[string]interface{}{
-			"payload": map[string]interface{}{
-				"hostname": hostname,
-				"language": r.Header.Get("Accept-Language"),
-				"referrer": r.Referer(),
-				"screen":   resolution,
-				"url":      requestPath,
-				"website":  p.WebsiteUUID,
-			},
-			"type": "event",
+			"payload": payload,
+			"type":    "event",
 		}
 
 		body, err := json.Marshal(visitorInfo)
