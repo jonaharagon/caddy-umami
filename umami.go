@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"path"
+	"strings"
 
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
@@ -47,7 +48,13 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 		return err
 	}
 
-	pathExt := path.Ext(r.URL.Path)
+	// Save path to a variable and remove "//index.html" from the end of the path
+	requestPath := strings.TrimSuffix(r.URL.Path, "/index.html")
+	if strings.HasSuffix(requestPath, "/") && r.URL.String() != "/" {
+		requestPath = strings.TrimSuffix(requestPath, "/")
+	}
+
+	pathExt := path.Ext(requestPath)
 
 	if !p.ReportAllResources {
 		if !p.AllowedExtensions[pathExt] {
@@ -80,7 +87,7 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 				"hostname": hostname,
 				"language": r.Header.Get("Accept-Language"),
 				"referrer": r.Referer(),
-				"url":      r.URL.String(),
+				"url":      requestPath,
 				"website":  p.WebsiteUUID,
 			},
 			"type": "event",
