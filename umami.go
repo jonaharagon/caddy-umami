@@ -74,9 +74,8 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 	// Send visitor information to the Umami Events REST API endpoint
 	go func() {
 		payload := map[string]interface{}{
-			"referrer": r.Referer(),
-			"url":      requestPath,
-			"website":  p.WebsiteUUID,
+			"url":     requestPath,
+			"website": p.WebsiteUUID,
 		}
 
 		hostname, _, err := net.SplitHostPort(r.Host)
@@ -86,6 +85,10 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 		payload["hostname"] = hostname
 
 		payload["language"] = strings.Split(r.Header.Get("Accept-Language"), ",")[0]
+
+		if r.Referer() != "" {
+			payload["referrer"] = r.Referer()
+		}
 
 		visitorIP, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
@@ -115,7 +118,7 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 					Value: "",
 				}
 			}
-			payload["resolution"] = cookie.Value
+			payload["screen"] = cookie.Value
 		}
 
 		visitorInfo := map[string]interface{}{
