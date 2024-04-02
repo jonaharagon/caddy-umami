@@ -23,16 +23,16 @@ func init() {
 
 // Umami is a Caddy module that sends visitor information to the Umami Events REST API endpoint.
 type Umami struct {
-	EventEndpoint      string
-	WebsiteUUID        string
-	AllowedExtensions  map[string]bool
-	ClientIPHeader     string
-	DebugLogging       bool
-	ReportAllResources bool
-	TrustedIPHeader    string
-	CookieConsent      string
-	CookieResolution   string
-	DeviceDetection    bool
+	EventEndpoint      string          `json:"event_endpoint"`
+	WebsiteUUID        string          `json:"website_uuid"`
+	AllowedExtensions  map[string]bool `json:"allowed_extensions,omitempty"`
+	ClientIPHeader     string          `json:"my_field,omitempty"`
+	DebugLogging       bool            `json:"debug,omitempty"`
+	ReportAllResources bool            `json:"report_all_resources,omitempty"`
+	TrustedIPHeader    string          `json:"trusted_ip_header,omitempty"`
+	CookieConsent      string          `json:"cookie_consent,omitempty"`
+	CookieResolution   string          `json:"cookie_resolution,omitempty"`
+	DeviceDetection    bool            `json:"device_detection,omitempty"`
 }
 
 // CaddyModule returns the Caddy module information.
