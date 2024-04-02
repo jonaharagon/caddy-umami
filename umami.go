@@ -32,6 +32,7 @@ type Umami struct {
 	TrustedIPHeader    string
 	CookieConsent      string
 	CookieResolution   string
+	DeviceDetection    bool
 }
 
 // CaddyModule returns the Caddy module information.
@@ -110,15 +111,27 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 					fmt.Printf("Error getting resolution cookie: %v\n", err)
 				}
 			}
-
-			// handle if cookie does not exist
-			if cookie == nil {
-				cookie = &http.Cookie{
-					Name:  p.CookieResolution,
-					Value: "",
-				}
+			if cookie != nil {
+				payload["screen"] = cookie.Value
 			}
-			payload["screen"] = cookie.Value
+		}
+
+		if payload["screen"] == nil && p.DeviceDetection {
+			mobile := r.Header.Get("Sec-CH-UA-Mobile")
+			platform := r.Header.Get("Sec-CH-UA-Platform")
+
+			if p.DebugLogging {
+				fmt.Printf("Mobile: %s\n", mobile)
+				fmt.Printf("Platform: %s\n", platform)
+			}
+
+			if mobile == "?1" {
+				payload["screen"] = "400x800" // mobile
+			} else if platform == `"Android"` {
+				payload["screen"] = "900x600" // tablet
+			} else if platform == `"Chrome OS"` || platform == `"macOS"` {
+				payload["screen"] = "1200x800" // laptop
+			}
 		}
 
 		visitorInfo := map[string]interface{}{
@@ -189,7 +202,7 @@ func (p *Umami) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 				}
 				p.WebsiteUUID = d.Val()
 			case "report_all_resources":
-				p.ReportAllResources = d.Val() == "true"
+				p.ReportAllResources = true
 			case "allowed_extensions":
 				if !d.NextArg() {
 					return d.ArgErr()
@@ -222,6 +235,8 @@ func (p *Umami) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 				} else {
 					p.CookieResolution = d.Val()
 				}
+			case "device_detection":
+				p.DeviceDetection = true
 
 			default:
 				return d.Errf("unknown option '%s'", d.Val())
@@ -252,7 +267,9 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 	if umami.DebugLogging {
 		fmt.Printf("Event Endpoint: %s\n", umami.EventEndpoint)
 		fmt.Printf("Website UUID: %s\n", umami.WebsiteUUID)
+		fmt.Printf("Reporting All Resources: %v\n", umami.ReportAllResources)
 		fmt.Printf("Allowed Extensions: %v\n", umami.AllowedExtensions)
+		fmt.Printf("Device Detection: %v\n", umami.DeviceDetection)
 	}
 	return umami, nil
 }
