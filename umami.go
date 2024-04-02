@@ -197,6 +197,10 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("Allowed Extensions: %v\n", umami.AllowedExtensions)
+	if umami.DebugLogging {
+		fmt.Printf("Event Endpoint: %s\n", umami.EventEndpoint)
+		fmt.Printf("Website UUID: %s\n", umami.WebsiteUUID)
+		fmt.Printf("Allowed Extensions: %v\n", umami.AllowedExtensions)
+	}
 	return umami, nil
 }
