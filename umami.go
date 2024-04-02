@@ -74,6 +74,24 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 
 	// Send visitor information to the Umami Events REST API endpoint
 	go func() {
+		// get request query strings
+		queryStrings := r.URL.Query()
+		queryString := queryStrings.Encode()
+		if p.DebugLogging {
+			fmt.Printf("Query Strings: %s\n", queryString)
+		}
+
+		if !strings.HasPrefix(requestPath, "/") {
+			requestPath = "/" + requestPath
+		}
+
+		if queryString != "" {
+			requestPath = fmt.Sprintf("%s?%s", requestPath, queryString)
+			if p.DebugLogging {
+				fmt.Printf("Request Path: %s\n", requestPath)
+			}
+		}
+
 		payload := map[string]interface{}{
 			"url":     requestPath,
 			"website": p.WebsiteUUID,
@@ -129,7 +147,7 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 				payload["screen"] = "400x800" // mobile
 			} else if platform == `"Android"` {
 				payload["screen"] = "900x600" // tablet
-			} else if platform == `"Chrome OS"` || platform == `"macOS"` {
+			} else if platform == `"Chrome OS"` {
 				payload["screen"] = "1200x800" // laptop
 			}
 		}
@@ -161,8 +179,8 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 		}
 
 		if p.DebugLogging {
-			fmt.Printf("IP: %s\n", visitorIP)
-			fmt.Printf("User-Agent: %s\n", r.UserAgent())
+			fmt.Printf("IP: %s\n", req.Header.Get("X-Forwarded-For"))
+			fmt.Printf("User-Agent: %s\n", req.UserAgent())
 			fmt.Printf("Body: %s\n", body)
 		}
 
