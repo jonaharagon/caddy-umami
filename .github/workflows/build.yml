@@ -1,0 +1,48 @@
+name: Build
+
+on:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      goos:
+        type: string
+      goarch:
+        type: string
+      go:
+        type: string
+      xcaddy_version:
+        type: string
+
+env:
+  CGO_ENABLED: 0
+  GOOS: ${{ inputs.goos || 'darwin' }}
+  GOARCH: ${{ inputs.goarch || 'arm64' }}
+  XCADDY_VERSION: ${{ inputs.xcaddy_version || '0.3.5' }}
+
+jobs:
+  build:
+    name: Build caddy
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go || '~1.22.1' }}
+
+      - name: Build Caddy
+        run: |
+          wget https://github.com/caddyserver/xcaddy/releases/download/v${{ env.XCADDY_VERSION }}/xcaddy_${{ env.XCADDY_VERSION }}_linux_amd64.tar.gz
+          tar -xzvf xcaddy_${{ env.XCADDY_VERSION }}_linux_amd64.tar.gz
+          GOOS=$GOOS GOARCH=$GOARCH ./xcaddy build \
+            --with github.com/${{ github.repository }}@${{ github.ref_name}} \
+            --with github.com/caddyserver/cache-handler \
+            --with github.com/digilolnet/caddy-bunny-ip \
+            --output "caddy-$GOOS-$GOARCH"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: caddy-${{ env.GOOS }}-${{ env.GOARCH }}
+          path: caddy-${{ env.GOOS }}-${{ env.GOARCH }}

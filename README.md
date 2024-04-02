@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD010 -->
 # Caddy Umami Plugin
 
-A module for Caddy which sends HTTP request information to Umami as page view events. The data is sent directly from the web server to Umami's [`/api/send` endpoint](https://umami.is/docs/sending-stats) without requiring you to include any client-side JavaScript on your website. The visitor's IP is set via the `X-Forwarded-For` header, one of which should be [set as `CLIENT_IP_HEADER` in Umami](https://umami.is/docs/environment-variables).
+A module for Caddy which sends HTTP request information to Umami as page view events. The data is sent directly from the web server to Umami's [`/api/send` endpoint](https://umami.is/docs/sending-stats) without requiring you to include any client-side JavaScript on your website. The visitor's IP is set via the `X-Forwarded-For` header or the header specified with **client_ip_header**, one of which should be [set as `CLIENT_IP_HEADER` in Umami](https://umami.is/docs/environment-variables).
 
 ## Config
 
