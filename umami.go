@@ -22,28 +22,37 @@ func init() {
 	httpcaddyfile.RegisterHandlerDirective("umami", parseCaddyfile)
 }
 
-// http.handlers.umami is a Caddy module that sends visitor information to Umami's Events REST API endpoint.
+// A Caddy module which sends visitor information to Umami's Events REST API endpoint.
 type Umami struct {
-	// EventEndpoint defines the address of your Umami installation's send API endpoint.
+	// The address of your Umami installation's send API endpoint.
 	EventEndpoint string `json:"event_endpoint"`
-	// WebsiteUUID is the UUID of the website you want to track.
+	// The UUID of the website you want to track.
 	WebsiteUUID string `json:"website_uuid"`
-	// AllowedExtensions is a map of page path extensions that should be reported to Umami.
-	AllowedExtensions map[string]bool `json:"allowed_extensions,omitempty"`
-	// ClientIPHeader is the header to use to send the client IP address to Umami.
+	// A map of page path extensions that should be reported to Umami. You must include the leading dot.
+	AllowedExtensions []string `json:"allowed_extensions,omitempty"`
+	// The header to send the client IP address to Umami with.
 	ClientIPHeader string `json:"client_ip_header,omitempty"`
-	// ReportAllResources enables reporting of all resources (ignoring extension checks).
+	// Enables reporting of all resources (ignoring extension checks).
 	ReportAllResources bool `json:"report_all_resources,omitempty"`
-	// TrustedIPHeader is the header to use to get the client IP address from, behind a trusted reverse proxy.
+	// The header to use to get the client IP address from, behind a trusted reverse proxy.
 	TrustedIPHeader string `json:"trusted_ip_header,omitempty"`
-	// CookieConsent is a map of cookie-based consent settings.
-	CookieConsent map[string]string `json:"cookie_consent,omitempty"`
-	// CookieResolution is the name of the cookie that stores the visitor's screen resolution.
+	// A map of cookie-based consent settings. Only the first entry is currently used.
+	CookieConsent []CookieConsent `json:"cookie_consent,omitempty"`
+	// The name of the cookie that stores the visitor's screen resolution.
 	CookieResolution string `json:"cookie_resolution,omitempty"`
-	// DeviceDetection enables rudimentary device detection based on Sec-CH-UA-Mobile and Sec-CH-UA-Platform headers.
+	// Enable rudimentary device detection based on Sec-CH-UA-Mobile and Sec-CH-UA-Platform headers.
 	DeviceDetection bool `json:"device_detection,omitempty"`
 
 	logger *zap.Logger
+}
+
+type CookieConsent struct {
+	// The name of the cookie that stores the consent setting.
+	Name string `json:"name,omitempty"`
+	// Can be "disable_all" to disable sending analytics if the cookie value is "false",
+	// or "path_only" to send analytic data without client information (IP, user agent, etc.) if the cookie value is "false".
+	// Defaults to "disable_all" if not specified.
+	Behavior string `json:"behavior,omitempty"`
 }
 
 // CaddyModule returns the Caddy module information.
@@ -78,8 +87,19 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 
 	// Check if the request should be reported based on extension.
 	pathExt := path.Ext(requestPath)
+	found := false
 	if !p.ReportAllResources {
-		if !p.AllowedExtensions[pathExt] {
+		// check if the extension is in string slice
+		for _, ext := range p.AllowedExtensions {
+			if ext == pathExt {
+				found = true
+				break
+			}
+		}
+		if found {
+			p.logger.Debug("Path extension found", zap.String("path", requestPath))
+		} else {
+			p.logger.Debug("Path extension not found", zap.String("path", requestPath))
 			return nil
 		}
 	}
@@ -187,13 +207,13 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 // 2 - only path analytics
 func (p *Umami) GetAllowed(r *http.Request) int {
 	if len(p.CookieConsent) != 0 {
-		if p.CookieConsent["behavior"] == "path_only" {
-			cookie, err := r.Cookie(p.CookieConsent["cookie"])
+		if p.CookieConsent[0].Behavior == "path_only" {
+			cookie, err := r.Cookie(p.CookieConsent[0].Name)
 			if err == nil && cookie != nil && cookie.Value == "false" {
 				return 2
 			}
-		} else if p.CookieConsent["behavior"] == "disable_all" {
-			cookie, err := r.Cookie(p.CookieConsent["cookie"])
+		} else if p.CookieConsent[0].Behavior == "disable_all" {
+			cookie, err := r.Cookie(p.CookieConsent[0].Name)
 			if err == nil && cookie != nil && cookie.Value == "false" {
 				return 0
 			}
@@ -294,10 +314,8 @@ func (p *Umami) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 				if !d.NextArg() {
 					return d.ArgErr()
 				}
-				p.AllowedExtensions[d.Val()] = true // Add the current argument
-				for _, ext := range d.RemainingArgs() {
-					p.AllowedExtensions[ext] = true
-				}
+				p.AllowedExtensions = append(p.AllowedExtensions, d.Val()) // Add the current argument
+				p.AllowedExtensions = append(p.AllowedExtensions, d.RemainingArgs()...)
 			case "client_ip_header":
 				if !d.NextArg() {
 					return d.ArgErr()
@@ -311,23 +329,21 @@ func (p *Umami) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 			case "cookie_consent":
 				// defaults
 				if !d.NextArg() {
-					p.CookieConsent["behavior"] = "disable_all"
-					p.CookieConsent["cookie"] = "umami_consent"
+					p.CookieConsent = append(p.CookieConsent, CookieConsent{Name: "umami_consent", Behavior: "disable_all"})
 				} else {
 					// if behavior specified
 					if d.Val() == "disable_all" || d.Val() == "path_only" {
-						p.CookieConsent["behavior"] = d.Val()
+						behavior := d.Val()
 						if !d.NextArg() {
 							// if cookie unspecified
-							p.CookieConsent["cookie"] = "umami_consent"
+							p.CookieConsent = append(p.CookieConsent, CookieConsent{Name: "umami_consent", Behavior: behavior})
 						} else {
 							// if behavior + cookie specified
-							p.CookieConsent["cookie"] = d.Val()
+							p.CookieConsent = append(p.CookieConsent, CookieConsent{Name: d.Val(), Behavior: behavior})
 						}
 					} else {
 						// if behavior unspecified + cookie specified
-						p.CookieConsent["behavior"] = "disable_all"
-						p.CookieConsent["cookie"] = d.Val()
+						p.CookieConsent = append(p.CookieConsent, CookieConsent{Name: d.Val(), Behavior: "disable_all"})
 					}
 				}
 			case "cookie_resolution":
@@ -347,12 +363,7 @@ func (p *Umami) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 
 	// set default if p.AllowedExtensions is empty
 	if len(p.AllowedExtensions) == 0 {
-		p.AllowedExtensions = map[string]bool{
-			"":      true,
-			".htm":  true,
-			".html": true,
-			".php":  true,
-		}
+		p.AllowedExtensions = []string{"", ".htm", ".html", ".php"}
 	}
 
 	return nil
@@ -361,8 +372,8 @@ func (p *Umami) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 // MarshalCaddyfile implements caddyfile.Marshaler.
 func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error) {
 	var umami Umami
-	umami.AllowedExtensions = make(map[string]bool)
-	umami.CookieConsent = make(map[string]string)
+	umami.AllowedExtensions = []string{}
+	umami.CookieConsent = []CookieConsent{}
 	err := umami.UnmarshalCaddyfile(h.Dispenser)
 	if err != nil {
 		return nil, err
