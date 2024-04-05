@@ -57,7 +57,8 @@ jobs:
             --with github.com/digilolnet/caddy-bunny-ip \
             --output "caddy-$GOOS-$GOARCH"
         
-      - name: Show build info
+      - if: env.GOOS == 'linux' && env.GOARCH == 'amd64'
+        name: Show build info
         run: |
           ./caddy-$GOOS-$GOARCH build-info
 

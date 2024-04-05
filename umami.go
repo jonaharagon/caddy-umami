@@ -14,6 +14,7 @@ import (
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
 	"github.com/caddyserver/caddy/v2/caddyconfig/httpcaddyfile"
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
+	"go.uber.org/zap"
 )
 
 func init() {
@@ -30,9 +31,7 @@ type Umami struct {
 	// AllowedExtensions is a map of page path extensions that should be reported to Umami.
 	AllowedExtensions map[string]bool `json:"allowed_extensions,omitempty"`
 	// ClientIPHeader is the header to use to send the client IP address to Umami.
-	ClientIPHeader string `json:"my_field,omitempty"`
-	// DebugLogging enables debug logging.
-	DebugLogging bool `json:"debug,omitempty"`
+	ClientIPHeader string `json:"client_ip_header,omitempty"`
 	// ReportAllResources enables reporting of all resources (ignoring extension checks).
 	ReportAllResources bool `json:"report_all_resources,omitempty"`
 	// TrustedIPHeader is the header to use to get the client IP address from, behind a trusted reverse proxy.
@@ -43,6 +42,8 @@ type Umami struct {
 	CookieResolution string `json:"cookie_resolution,omitempty"`
 	// DeviceDetection enables rudimentary device detection based on Sec-CH-UA-Mobile and Sec-CH-UA-Platform headers.
 	DeviceDetection bool `json:"device_detection,omitempty"`
+
+	logger *zap.Logger
 }
 
 // CaddyModule returns the Caddy module information.
@@ -55,15 +56,15 @@ func (Umami) CaddyModule() caddy.ModuleInfo {
 
 // ServeHTTP implements the caddyhttp.MiddlewareHandler interface.
 func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.Handler) error {
+	p.logger.Debug("Umami middleware called")
+
 	// Call the next handler in the chain
 	err := next.ServeHTTP(w, r)
 	if err != nil {
 		return err
 	}
 
-	if p.DebugLogging {
-		fmt.Printf("Allowed? %d\n", p.GetAllowed(r))
-	}
+	p.logger.Debug("Allowed", zap.Int("allowed", p.GetAllowed(r)))
 
 	// Check if analytics should be performed.
 	if p.GetAllowed(r) == 0 {
@@ -90,9 +91,7 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 		// Get request query strings.
 		queryStrings := r.URL.Query()
 		queryString := queryStrings.Encode()
-		if p.DebugLogging {
-			fmt.Printf("Query Strings: %s\n", queryString)
-		}
+		p.logger.Debug("Query Strings", zap.String("queryStrings", queryString))
 
 		// Normalize request path.
 		if !strings.HasPrefix(requestPath, "/") {
@@ -102,9 +101,7 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 		// Preserve query strings.
 		if queryString != "" {
 			requestPath = fmt.Sprintf("%s?%s", requestPath, queryString)
-			if p.DebugLogging {
-				fmt.Printf("Request Path: %s\n", requestPath)
-			}
+			p.logger.Debug("Request Path", zap.String("requestPath", requestPath))
 		}
 
 		// Remove port from hostname.
@@ -132,7 +129,7 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 
 		body, err := json.Marshal(visitorInfo)
 		if err != nil {
-			fmt.Printf("Error marshaling visitor info: %v\n", err)
+			p.logger.Error("Error marshaling visitor info", zap.Error(err))
 			return
 		}
 
@@ -141,7 +138,7 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 		client := &http.Client{}
 		req, err := http.NewRequest("POST", p.EventEndpoint, bytes.NewBuffer(body))
 		if err != nil {
-			fmt.Printf("Error creating request: %v\n", err)
+			p.logger.Error("Error creating request", zap.Error(err))
 			return
 		}
 
@@ -159,26 +156,26 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 			req.Header.Set(p.ClientIPHeader, visitorIP)
 		}
 
-		// if p.DebugLogging {
-		fmt.Printf("IP: %s\n", req.Header.Get("X-Forwarded-For"))
-		fmt.Printf("User-Agent: %s\n", req.UserAgent())
-		fmt.Printf("Body: %s\n", body)
-		// }
+		p.logger.Debug("IP", zap.String("IP", req.Header.Get("X-Forwarded-For")))
+		p.logger.Debug("User-Agent", zap.String("User-Agent", req.UserAgent()))
+		p.logger.Debug("Body", zap.String("Body", string(body)))
 
 		resp, err := client.Do(req)
 		if err != nil {
-			fmt.Printf("Error sending visitor info: %v\n", err)
+			p.logger.Warn("Error sending visitor info", zap.Error(err))
 			return
+		} else {
+			p.logger.Info("Visitor info sent", zap.Int("status", resp.StatusCode))
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
 			respBody, err := io.ReadAll(resp.Body)
 			if err != nil {
-				fmt.Printf("Error reading response body: %v\n", err)
+				p.logger.Warn("Error reading response body", zap.Error(err))
 				return
 			}
-			fmt.Printf("Error response from Umami API: %s\n", respBody)
+			p.logger.Warn("Error response from Umami API", zap.String("response", string(respBody)))
 			return
 		}
 	}()
@@ -220,8 +217,8 @@ func (p *Umami) GetClientIP(r *http.Request) string {
 		trustedIP := r.Header.Get(p.TrustedIPHeader)
 		if net.ParseIP(trustedIP) != nil {
 			visitorIP = trustedIP
-		} else if p.DebugLogging {
-			fmt.Printf("Invalid IP address provided by trusted IP header: %s\n", trustedIP)
+		} else {
+			p.logger.Debug("Invalid IP address provided by trusted IP header", zap.String("IP", trustedIP))
 		}
 	}
 	// anonymize IP based on consent cookie
@@ -245,9 +242,7 @@ func (p *Umami) GetClientInfo(r *http.Request, payload map[string]interface{}) {
 	if p.CookieResolution != "" {
 		cookie, err := r.Cookie(p.CookieResolution)
 		if err != nil {
-			if p.DebugLogging {
-				fmt.Printf("Error getting resolution cookie: %v\n", err)
-			}
+			p.logger.Debug("Error getting resolution cookie", zap.Error(err))
 		}
 		if cookie != nil {
 			payload["screen"] = cookie.Value
@@ -260,10 +255,8 @@ func (p *Umami) GetClientInfo(r *http.Request, payload map[string]interface{}) {
 		mobile := r.Header.Get("Sec-CH-UA-Mobile")
 		platform := r.Header.Get("Sec-CH-UA-Platform")
 
-		if p.DebugLogging {
-			fmt.Printf("Mobile: %s\n", mobile)
-			fmt.Printf("Platform: %s\n", platform)
-		}
+		p.logger.Debug("Mobile", zap.String("mobile", mobile))
+		p.logger.Debug("Platform", zap.String("platform", platform))
 
 		if mobile == "?1" {
 			payload["screen"] = "400x800" // mobile
@@ -273,6 +266,12 @@ func (p *Umami) GetClientInfo(r *http.Request, payload map[string]interface{}) {
 			payload["screen"] = "1200x800" // laptop
 		}
 	}
+}
+
+// Provision logging for module
+func (p *Umami) Provision(ctx caddy.Context) error {
+	p.logger = ctx.Logger()
+	return nil
 }
 
 // UnmarshalCaddyfile implements caddyfile.Unmarshaler.
@@ -310,8 +309,6 @@ func (p *Umami) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 					return d.ArgErr()
 				}
 				p.TrustedIPHeader = d.Val()
-			case "debug":
-				p.DebugLogging = true
 			case "cookie_consent":
 				// defaults
 				if !d.NextArg() {
@@ -371,24 +368,33 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 	if err != nil {
 		return nil, err
 	}
-	if umami.DebugLogging {
-		fmt.Printf("Event Endpoint: %s\n", umami.EventEndpoint)
-		fmt.Printf("Website UUID: %s\n", umami.WebsiteUUID)
-		fmt.Printf("Reporting All Resources: %v\n", umami.ReportAllResources)
-		fmt.Printf("Allowed Extensions: %v\n", umami.AllowedExtensions)
-		fmt.Printf("Device Detection: %v\n", umami.DeviceDetection)
-		fmt.Printf("Client IP Header: %s\n", umami.ClientIPHeader)
-		fmt.Printf("Trusted IP Header: %s\n", umami.TrustedIPHeader)
-		fmt.Printf("Cookie Consent Behavior: %v\n", umami.CookieConsent["behavior"])
-		fmt.Printf("Cookie Consent Cookie: %s\n", umami.CookieConsent["cookie"])
-		fmt.Printf("Cookie Resolution: %s\n", umami.CookieResolution)
-		fmt.Printf("Debug Logging: %v\n", umami.DebugLogging)
-	}
 	return umami, nil
+}
+
+func (p *Umami) Validate() error {
+	if p.EventEndpoint == "" {
+		return fmt.Errorf("no event endpoint provided")
+	}
+	if p.WebsiteUUID == "" {
+		return fmt.Errorf("no website UUID provided")
+	}
+	p.logger.Debug("Event Endpoint: " + p.EventEndpoint)
+	p.logger.Debug("Website UUID: " + p.WebsiteUUID)
+	p.logger.Debug("Allowed Extensions: " + fmt.Sprint(p.AllowedExtensions))
+	p.logger.Debug("Client IP Header: " + p.ClientIPHeader)
+	p.logger.Debug("Trusted IP Header: " + p.TrustedIPHeader)
+	p.logger.Debug("Report All Resources: " + fmt.Sprint(p.ReportAllResources))
+	p.logger.Debug("Cookie Consent: " + fmt.Sprint(p.CookieConsent))
+	p.logger.Debug("Cookie Resolution: " + p.CookieResolution)
+	p.logger.Debug("Device Detection: " + fmt.Sprint(p.DeviceDetection))
+	p.logger.Info("Umami middleware validated")
+	return nil
 }
 
 // Interface guards
 var (
 	_ caddyhttp.MiddlewareHandler = (*Umami)(nil)
 	_ caddyfile.Unmarshaler       = (*Umami)(nil)
+	_ caddy.Provisioner           = (*Umami)(nil)
+	_ caddy.Validator             = (*Umami)(nil)
 )

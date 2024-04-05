@@ -19,7 +19,6 @@ umami [<matcher>] {
 	device_detection
 	trusted_ip_header <name>
 	report_all_resources
-	debug
 }
 ```
 
