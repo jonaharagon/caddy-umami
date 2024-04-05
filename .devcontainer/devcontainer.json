@@ -1,0 +1,26 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/go
+{
+	"name": "Go",
+	"image": "mcr.microsoft.com/devcontainers/go:1-1.22-bookworm",
+	"features": {
+		"ghcr.io/devcontainers/features/go:1": {
+			"version": "latest"
+		},
+		"ghcr.io/azutake/devcontainer-features/go-packages-install:0": {
+			"PACKAGES": "github.com/caddyserver/xcaddy/cmd/xcaddy@latest"
+		},
+		"ghcr.io/devcontainers-contrib/features/caddy:1": {
+			"version": "latest",
+			"golangVersion": "latest"
+		}
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"GitHub.copilot",
+				"matthewpi.caddyfile-support"
+			]
+		}
+	}
+}

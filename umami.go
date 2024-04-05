@@ -64,9 +64,7 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 		return err
 	}
 
-	p.logger.Debug("Allowed", zap.Int("allowed", p.GetAllowed(r)))
-
-	// Check if analytics should be performed.
+	p.logger.Debug("Check if analytics should be performed:", zap.Int("allowed", p.GetAllowed(r)))
 	if p.GetAllowed(r) == 0 {
 		return nil
 	}
@@ -156,16 +154,16 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 			req.Header.Set(p.ClientIPHeader, visitorIP)
 		}
 
-		p.logger.Debug("IP", zap.String("IP", req.Header.Get("X-Forwarded-For")))
-		p.logger.Debug("User-Agent", zap.String("User-Agent", req.UserAgent()))
-		p.logger.Debug("Body", zap.Any("Body", body))
+		p.logger.Debug("IP:", zap.String("IP", req.Header.Get("X-Forwarded-For")))
+		p.logger.Debug("User-Agent:", zap.String("User-Agent", req.UserAgent()))
+		p.logger.Debug("Body:", zap.Any("visitorInfo", visitorInfo))
 
 		resp, err := client.Do(req)
 		if err != nil {
 			p.logger.Warn("Error sending visitor info", zap.Error(err))
 			return
 		} else {
-			p.logger.Info("Visitor info sent", zap.Int("status", resp.StatusCode))
+			p.logger.Debug("Visitor info sent", zap.Int("status", resp.StatusCode))
 		}
 		defer resp.Body.Close()
 
@@ -225,6 +223,7 @@ func (p *Umami) GetClientIP(r *http.Request) string {
 	if p.GetAllowed(r) != 1 {
 		visitorIP = "240.16.0.1"
 	}
+	p.logger.Debug("Returning visitor IP to umami:", zap.String("IP", visitorIP))
 	return visitorIP
 }
 
