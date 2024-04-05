@@ -14,7 +14,7 @@ umami [<matcher>] {
 
 	allowed_extensions <extensions ...>
 	client_ip_header <name>
-	cookie_consent [<name>]
+	cookie_consent [path_only|disable_all] [<name>]
 	cookie_resolution [<name>]
 	device_detection
 	trusted_ip_header <name>
