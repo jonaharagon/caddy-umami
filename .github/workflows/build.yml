@@ -10,7 +10,6 @@ on:
     inputs:
       build_from:
         type: string
-        default: =./caddy-umami
       goos:
         type: string
       goarch:
@@ -21,6 +20,7 @@ on:
         type: string
 
 env:
+  BUILD_FROM: ${{ inputs.build_from || '=./caddy-umami' }}
   CGO_ENABLED: 0
   GOOS: ${{ inputs.goos || 'linux' }}
   GOARCH: ${{ inputs.goarch || 'amd64' }}
@@ -52,7 +52,7 @@ jobs:
       - name: Build Caddy
         run: |
           GOOS=$GOOS GOARCH=$GOARCH ./xcaddy build \
-            --with github.com/jonaharagon/caddy-umami${{ inputs.build_from }} \
+            --with github.com/jonaharagon/caddy-umami${{ env.BUILD_FROM }} \
             --with github.com/caddyserver/cache-handler \
             --with github.com/digilolnet/caddy-bunny-ip \
             --output "caddy-$GOOS-$GOARCH"

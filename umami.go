@@ -158,7 +158,7 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 
 		p.logger.Debug("IP", zap.String("IP", req.Header.Get("X-Forwarded-For")))
 		p.logger.Debug("User-Agent", zap.String("User-Agent", req.UserAgent()))
-		p.logger.Debug("Body", zap.String("Body", string(body)))
+		p.logger.Debug("Body", zap.Any("Body", body))
 
 		resp, err := client.Do(req)
 		if err != nil {
