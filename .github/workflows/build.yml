@@ -53,8 +53,6 @@ jobs:
         run: |
           GOOS=$GOOS GOARCH=$GOARCH ./xcaddy build \
             --with github.com/jonaharagon/caddy-umami${{ env.BUILD_FROM }} \
-            --with github.com/caddyserver/cache-handler \
-            --with github.com/digilolnet/caddy-bunny-ip \
             --output "caddy-$GOOS-$GOARCH"
         
       - if: env.GOOS == 'linux' && env.GOARCH == 'amd64'
