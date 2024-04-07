@@ -65,3 +65,9 @@ example.com {
 ## Thanks
 
 - Safing for [Plausible Feeder Traefik Plugin](https://github.com/safing/plausiblefeeder)
+
+## License
+
+Copyright &copy; 2024 Jonah Aragon
+
+This source code is made available under the [MIT](LICENSE-MIT) **and** [Apache](LICENSE-Apache) licenses (i.e. you can pick which one to follow). This is because I generally prefer MIT and chose it first, but later noticed most of the Caddy ecosystem uses Apache 2.0 :smile:
