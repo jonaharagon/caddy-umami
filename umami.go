@@ -36,16 +36,19 @@ type Umami struct {
 	ReportAllResources bool `json:"report_all_resources,omitempty"`
 	// The header to use to get the client IP address from, behind a trusted reverse proxy.
 	TrustedIPHeader string `json:"trusted_ip_header,omitempty"`
-	// A map of cookie-based consent settings. Only the first entry is currently used.
+	// A map of cookie-based consent settings. Only the first value in the map is utilized currently.
 	CookieConsent []CookieConsent `json:"cookie_consent,omitempty"`
 	// The name of the cookie that stores the visitor's screen resolution.
 	CookieResolution string `json:"cookie_resolution,omitempty"`
 	// Enable rudimentary device detection based on Sec-CH-UA-Mobile and Sec-CH-UA-Platform headers.
 	DeviceDetection bool `json:"device_detection,omitempty"`
+	// Optional static metadata to include with each event via query string.
+	StaticMetadata []StaticMetadata `json:"static_metadata,omitempty"`
 
 	logger *zap.Logger
 }
 
+// Cookie-based consent settings.
 type CookieConsent struct {
 	// The name of the cookie that stores the consent setting.
 	Name string `json:"name,omitempty"`
@@ -53,6 +56,14 @@ type CookieConsent struct {
 	// or "path_only" to send analytic data without client information (IP, user agent, etc.) if the cookie value is "false".
 	// Defaults to "disable_all" if not specified.
 	Behavior string `json:"behavior,omitempty"`
+}
+
+// Optional static metadata to include with each event via query string.
+type StaticMetadata struct {
+	// The key of the metadata.
+	Key string `json:"key,omitempty"`
+	// The value of the metadata.
+	Value string `json:"value,omitempty"`
 }
 
 // CaddyModule returns the Caddy module information.
@@ -108,6 +119,13 @@ func (p Umami) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.
 	go func() {
 		// Get request query strings.
 		queryStrings := r.URL.Query()
+
+		// Add optional metadata to query strings.
+		for _, metadata := range p.StaticMetadata {
+			queryStrings.Add(metadata.Key, metadata.Value)
+		}
+
+		// Encode query strings.
 		queryString := queryStrings.Encode()
 		p.logger.Debug("Query Strings", zap.String("queryStrings", queryString))
 
@@ -354,6 +372,12 @@ func (p *Umami) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 				}
 			case "device_detection":
 				p.DeviceDetection = true
+			case "static_metadata":
+				Metadata, err := ParseCaddyfileStaticMetadata(d)
+				if err != nil {
+					return err
+				}
+				p.StaticMetadata = Metadata
 
 			default:
 				return d.Errf("unknown option '%s'", d.Val())
@@ -367,6 +391,38 @@ func (p *Umami) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 	}
 
 	return nil
+}
+
+func ParseCaddyfileStaticMetadata(d *caddyfile.Dispenser) ([]StaticMetadata, error) {
+	var metadata []StaticMetadata
+
+	// Allow for options formatted as:
+	//     static_metadata key value
+	if d.NextArg() {
+		key := d.Val()
+		if !d.NextArg() {
+			return nil, d.ArgErr()
+		}
+		value := d.Val()
+		metadata = append(metadata, StaticMetadata{Key: key, Value: value})
+		return metadata, nil
+	}
+
+	// Allow for options formatted as:
+	//     static_metadata {
+	//         key value
+	//		     key value
+	//         ...
+	//     }
+	for nesting := d.Nesting(); d.NextBlock(nesting); {
+		key := d.Val()
+		if !d.NextArg() {
+			return nil, d.ArgErr()
+		}
+		value := d.Val()
+		metadata = append(metadata, StaticMetadata{Key: key, Value: value})
+	}
+	return metadata, nil
 }
 
 // MarshalCaddyfile implements caddyfile.Marshaler.
@@ -397,6 +453,7 @@ func (p *Umami) Validate() error {
 	p.logger.Debug("Cookie Consent: " + fmt.Sprint(p.CookieConsent))
 	p.logger.Debug("Cookie Resolution: " + p.CookieResolution)
 	p.logger.Debug("Device Detection: " + fmt.Sprint(p.DeviceDetection))
+	p.logger.Debug("Static Metadata: " + fmt.Sprint(p.StaticMetadata))
 	p.logger.Info("Umami middleware validated")
 	return nil
 }

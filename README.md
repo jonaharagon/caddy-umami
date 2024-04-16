@@ -19,11 +19,16 @@ umami [<matcher>] {
 	device_detection
 	trusted_ip_header <name>
 	report_all_resources
+	static_metadata {
+		<key> <value>
+		...
+		<key> <value>
+	}
 }
 ```
 
-- **event_endpoint** is the address of your Umami installation's send API endpoint
-- **website_uuid** is the UUID of the website from your Umami dashboard
+- **event_endpoint** (required) is the address of your Umami installation's send API endpoint
+- **website_uuid** (required) is the UUID of the website from your Umami dashboard
 - **allowed_extensions** is a list of extensions which indicate valid content.
   - Make sure to include `""` in this list if you want to track URLs which don't end in a file extension, such as `/` or `/about-us`
   - If unspecified, the default list of extensions is:
@@ -37,8 +42,10 @@ umami [<matcher>] {
 - **device_detection** can be enabled to set the sent screen resolution based on `Sec-CH-UA-Mobile`/`Sec-CH-UA-Platform`, for some rudimentary device detection without cookies. If this and `cookie_resolution` are both enabled, a screen resolution set by the cookie will take precedence.
 - **trusted_ip_header** is the name of an incoming HTTP request header which contains the visitor's true IP, which will then be sent to Umami via the `X-Forwarded-For`. This may be useful if your Caddy server is behind a reverse proxy.
 - **report_all_resources** can be included to report **all** requests to Umami, overriding allowed_extensions. By default, only requests with certain extensions are reported. This may be especially useful when using this module with a matcher.
+- **static_metadata** is information which will be added to the query strings delivered to Umami. Note that if there is a query string which matches a key used here in the original web request, the value set here will be [*appended*](https://pkg.go.dev/net/url#Values.Add) to that query string.
+  - For example, if you set `server node1` as the `<key> <value>` pair here, when a visitor accesses `/about-us` on your website, the path sent to Umami will be `/about-us?server=node1`. This allows you to do things like track which Caddy server sent the event data to Umami, and filter events in Umami based on that metadata (because Umami allows filtering by query string, but not by other things like event data).
 
-### Full Example
+### Example
 
 You should specify the order of the `umami` directive in your global options, otherwise the `umami` block has to be defined inside a `route` block.
 
