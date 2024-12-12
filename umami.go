@@ -309,16 +309,25 @@ func (p *Umami) GetAllowed(r *http.Request) int {
 	if len(p.CookieConsent) != 0 {
 		if p.CookieConsent[0].Behavior == "path_only" {
 			cookie, err := r.Cookie(p.CookieConsent[0].Name)
-			if err == nil && cookie != nil && cookie.Value == "false" {
+			if err == nil && cookie != nil && cookie.Value == "true" {
+				p.logger.Debug("Cookie allows analytics")
+				return 1
+			} else {
+				p.logger.Debug("Cookie does not allow analytics, sending path only")
 				return 2
 			}
 		} else if p.CookieConsent[0].Behavior == "disable_all" {
 			cookie, err := r.Cookie(p.CookieConsent[0].Name)
-			if err == nil && cookie != nil && cookie.Value == "false" {
+			if err == nil && cookie != nil && cookie.Value == "true" {
+				p.logger.Debug("Cookie allows analytics")
+				return 1
+			} else {
+				p.logger.Debug("Cookie does not allow analytics, sending no analytics")
 				return 0
 			}
 		}
 	}
+	p.logger.Debug("Cookie check disabled, sending all analytics")
 	return 1
 }
 
